@@ -23,95 +23,11 @@
 #include <arpa/inet.h>
 
 #include "cJSON.h"
+#include "pcc.h"
 
-#define VER_MAJOR                 0
-#define VER_MINOR                 0
-#define VER_PATCH                 1
-
-#define DEFAULT_MSOP_PORT         51180
-#define DEFAULT_DIFOP_PORT        51080
-
-#define MAXSIZE                   1500
-#define WHILE_NUM                 1
-#define LIDAR_NUM                 5
-#define MAX_POINT_NUM_IN_BLOCK    LIDAR_NUM /* 下面三个宏在结构体中被用到，无法适配config配置中的//可以将结构体的该部分设计成指针，然后通过malloc方式申请内存 */
-#define MAX_BLOCK_NUM             12        /* 设置小于3有问题，还需要回头看看 */
-#define ROLL_NUM                  2         /* 配置的回波次数 */
-
-static  uint8_t   bufOrigenAddr[MAXSIZE] = {0};
-static  uint16_t  pkgSn = 0;
-//注意字节对齐/命名规范
-typedef struct
-{
-    uint8_t           lidarType;
-    uint8_t           msgSource;
-    uint8_t           lidarNum;
-    uint8_t           maxBlockNum;
-    uint8_t           rollNum;
-    uint8_t           waitForDifop;
-    uint8_t           useLidarClock;
-    uint16_t          msopPort;
-    uint16_t          difopPort;  
-    uint16_t          startAngle;  
-    uint16_t          endAngle;    
-    float             minDistance;
-    float             maxDistance;
-    uint8_t           *pointCloudSendIp;  //需要子网掩码？
-    uint8_t           *packetSendIp;
-    uint8_t           *pcapPath;
-}LidarParamConfig;
-
-static LidarParamConfig lidarParamConfig = {0};
-
-typedef struct
-{
-    uint16_t          distance;
-    uint16_t          azimuth;
-    uint16_t          elevation;
-    uint8_t           reflectivity;
-    uint16_t          rsv;
-}PointT;
-
-typedef struct
-{
-    uint8_t           channelNum;
-    uint8_t           timeOffSet;
-    uint8_t           returnSn; //can be omitted
-    uint8_t           rsv;
-    PointT            pointT[MAX_POINT_NUM_IN_BLOCK];      
-}DataBlock;
-
-//40 byte
-typedef struct
-{
-    uint32_t           headCode;             //package identification
-    uint16_t           pkgLen;                //package paload len
-    uint16_t           pkgSn;                 //package sequnce num
-    uint16_t           lidarType;             //identify lidar type
-    uint16_t           protocolVersion;       //identify the using protocol version
-    uint8_t            timestamp[10];         //identify the timestamp for point cloud
-    uint8_t            measurenmentMode;      //identify city or high way road
-    uint8_t            laserNum;              //the laser scan at the same time
-    uint8_t            blockNum;              //the block num in one MSOP pkg
-    uint8_t            waveMode;              
-    uint8_t            timeSyncMode;          //self clock signal、 sync clock signal
-    uint8_t            timeSyncState;         //state of clock signal
-    uint8_t            memsTmp;               //the temperature of lidar
-    uint8_t            slotNum;               //muti lidar identified by the slot num
-    uint8_t            rsv[10];
-}PclPackageHead;
-
-typedef struct
-{
-    uint8_t            rsv[4];
-}PclPackageTail;
-
-typedef struct
-{
-    PclPackageHead     pclPackageHead;
-    DataBlock          dataBlock[MAX_BLOCK_NUM][ROLL_NUM];
-    PclPackageTail     pclPackageTail;
-}PclPackage;
+#define BUFFER_SIZE  2048
+static uint8_t buffer[BUFFER_SIZE] = {0};
+const char *hello = "Hello from server";
 
 void Set_1_Byte(uint8_t **buf, uint8_t value)
 {
@@ -191,12 +107,12 @@ void PackPclPkgDataBlockTmp(PclPackage *pclPackage)
     }
 }
 
-void PackPclPkgTmp(PclPackage *pclPackage, uint8_t while_num_for_client)
+void PackPclPkgTmp(PclPackage *pclPackage, uint8_t sn)
 {
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ head
     //4byte code
     pclPackage->pclPackageHead.pkgLen = 1108;
-    pclPackage->pclPackageHead.pkgSn = while_num_for_client;
+    pclPackage->pclPackageHead.pkgSn = sn;
     pclPackage->pclPackageHead.lidarType = 1;
     pclPackage->pclPackageHead.protocolVersion = 11;
 
@@ -469,8 +385,10 @@ static void show_version(void)
 int main(int argc, char **argv)
 {
     int option;
-    char *ip = NULL;
+    char *ipaddr = NULL;
     char *port = NULL;
+    struct sockaddr_in saddr, caddr;
+    size_t len = sizeof(struct sockaddr);
 
     const char * const short_options = "hvi:p:";
     const struct option long_options[] = {
@@ -493,7 +411,7 @@ int main(int argc, char **argv)
             show_version();
             break;
         case 'i':
-            ip = strdup(optarg);
+            ipaddr = strdup(optarg);
             break;
         case 'p':
             port = strdup(optarg);
@@ -506,56 +424,93 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("IP: %s, Port: %s\n", ip, port);
-    exit(0);
+    /* Server IP address and port */
 
+    memset(&saddr, 0, sizeof(saddr));
+    memset(&caddr, 0, sizeof(caddr));
 
-    struct sockaddr_in server_addr;
-    uint32_t cli_fd;
-    uint32_t sr, sw;
-    uint32_t while_num_for_client = 1;
+    //bzero(&saddr, sizeof(struct sockaddr_in));
+    saddr.sin_family = AF_INET;
+    saddr.sin_addr.s_addr = INADDR_ANY;
+    saddr.sin_port = htons(DEFAULT_MSOP_PORT);
+
+    printf("Host IP: %s, Port: %d\n", inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
+
+    /* Client IP address and port */
+    //bzero(&caddr, sizeof(struct sockaddr_in));
+    caddr.sin_family = AF_INET;
+
+    if (NULL == port) {
+        caddr.sin_port = htons(DEFAULT_MSOP_PORT);
+    } else {
+        caddr.sin_port = htons(atoi(port));
+    }
+    
+    if (NULL == ipaddr) {
+        caddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    } else {
+        caddr.sin_addr.s_addr = inet_addr(ipaddr);
+    }
+
+    printf("Target IP: %s, Port: %d\n", inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port));
+    
+    /* Create socket (UDP default) */
+    int sockfd;
+
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Bind the socket with the server address */
+    if ( bind(sockfd, (const struct sockaddr *)&saddr, sizeof(saddr)) < 0 )
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    int count = 10;
+
+#if 0
+
+    while (count--) {
+        printf("[%d] sendto %s:%d\n", count, inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port));
+        sendto(sockfd, (const char *)hello, strlen(hello), MSG_CONFIRM, 
+           (const struct sockaddr *) &caddr, len);
+        
+        sleep(1);
+    }
+
+#else
+    
 
     LidarConfigInit();
 
     PclPackage pclPackage = {0};
 
-    if((cli_fd = socket(AF_INET,SOCK_STREAM,0)) < 0)
+    uint8_t sn = 0;
+    uint32_t sr;
+    int ret = 0;
+
+
+    while (count--)
     {
-        printf("socket error:%d:%s\n",errno,strerror(errno));
-        return -1;
-    }
-    printf("socket OK fd[%d]\n",cli_fd);
-
-    bzero(&server_addr,sizeof(server_addr));
-
-    server_addr.sin_family=AF_INET;
-    server_addr.sin_port=htons(atoi(argv[1]));
-    inet_aton(argv[2],&server_addr.sin_addr);
-
-    if(connect(cli_fd,(struct sockaddr *)&server_addr,sizeof(server_addr))<0)
-    {
-        printf("connect error:%d:%s\n",errno,strerror(errno));
-        close(cli_fd);
-        return -1;
-    }
-    printf("connect to server %s:%d OK\n",argv[2],atoi(argv[1]));
-
-
-    while(while_num_for_client++)
-    {
-        bzero(bufOrigenAddr,sizeof(bufOrigenAddr));
+        bzero(bufOrigenAddr, sizeof(bufOrigenAddr));
         uint8_t *buf = bufOrigenAddr;
 
-        PackPclPkgTmp(&pclPackage, while_num_for_client - 2);
+        PackPclPkgTmp(&pclPackage, ++sn);
 
         PackPclPkgToBuf(buf, &pclPackage);
+
+        ret = sendto(sockfd, (const char *)bufOrigenAddr, strlen(bufOrigenAddr), 
+                     MSG_CONFIRM, (const struct sockaddr *) &caddr, len);
         
-        if((sw=write(cli_fd,&bufOrigenAddr,sizeof(bufOrigenAddr)))<=0)
-        {
-            printf("write error:%d:%s\n",errno,strerror(errno));
-            close(cli_fd);
+        if (ret < 0) {
+            printf("Send package error...\n");
+            close(sockfd);
             return -1;
         }
+
         printf("================================================================= head \n");
 
         printf("write %d bytes data to server headcode0:        %x\n",(int)sizeof(buf), bufOrigenAddr[0]);
@@ -612,22 +567,19 @@ int main(int argc, char **argv)
         printf("================================================================= end \n");
 
         // bzero(buf,sizeof(buf));
-        // if((sr=read(cli_fd,buf,sizeof(buf)))<=0)
+        // if((sr=read(sockfd,buf,sizeof(buf)))<=0)
         // {
         //     printf("read error:%d:%s\n",errno,strerror(errno));
-        //     close(cli_fd);
+        //     close(sockfd);
         //     return -1;
         // }
         // printf("read %d bytes data from server:%s\n",sr,buf);
-        usleep(100000);//us
-        if(while_num_for_client > WHILE_NUM)
-        {
-            break;
-        }
+        usleep(100000); // 10Hz
     }
 
-    close(cli_fd);
-    printf("connection closed!\n");
+#endif
+    close(sockfd);
+    printf("Exit!\n");
 
     return 0;
 }

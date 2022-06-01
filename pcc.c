@@ -25,18 +25,22 @@
 #include "cJSON.h"
 #include "pcc.h"
 
-#define BUFFER_SIZE  2048
+#define BUFFER_SIZE  1500
 static uint8_t buffer[BUFFER_SIZE] = {0};
 const char *hello = "Hello from server";
 
-void Set_1_Byte(uint8_t **buf, uint8_t value)
+static LidarParamConfig lidarParamConfig = {0};
+//static  uint8_t   bufOrigenAddr[MAXSIZE] = {0};
+static  uint16_t  pkgSn = 0;
+
+static void Set_1_Byte(uint8_t **buf, uint8_t value)
 {
     *(uint8_t *)(*buf) = value;
     (*buf)++;
     return;
 }
 
-void Set_2_Byte(uint8_t **buf, uint16_t value)
+static void Set_2_Byte(uint8_t **buf, uint16_t value)
 {
     // **buf = value;
     *(uint16_t *)(*buf) = value;
@@ -44,14 +48,14 @@ void Set_2_Byte(uint8_t **buf, uint16_t value)
     return;
 }
 
-void Set_4_Byte(uint8_t **buf, uint32_t value)
+static void Set_4_Byte(uint8_t **buf, uint32_t value)
 {
     *(uint32_t *)(*buf) = value;
     *buf = *buf + 4;
     return;
 }
 
-void PackPclPkgDataBlockTmp(PclPackage *pclPackage)
+static void PackPclPkgDataBlockTmp(PclPackage *pclPackage)
 {
     for(uint8_t blockLoop = 0; blockLoop < MAX_BLOCK_NUM; blockLoop++)
     {
@@ -96,7 +100,7 @@ void PackPclPkgDataBlockTmp(PclPackage *pclPackage)
             }
 
             PointT *pointT_tmp = &dataBlock_tmp[rollLoop].pointT[0];
-            for(uint8_t pointTLoop = 0; pointTLoop < lidarParamConfig.lidarNum; pointTLoop++)
+            for(uint8_t pointTLoop = 0; pointTLoop < LIDAR_NUM; pointTLoop++)
             {
                 pointT_tmp[pointTLoop].distance       = 15;
                 pointT_tmp[pointTLoop].azimuth        = 75;
@@ -107,14 +111,14 @@ void PackPclPkgDataBlockTmp(PclPackage *pclPackage)
     }
 }
 
-void PackPclPkgTmp(PclPackage *pclPackage, uint8_t sn)
+static void PackPclPkgTmp(PclPackage *pclPackage, uint16_t sn)
 {
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ head
     //4byte code
-    pclPackage->pclPackageHead.pkgLen = 1108;
-    pclPackage->pclPackageHead.pkgSn = sn;
-    pclPackage->pclPackageHead.lidarType = 1;
-    pclPackage->pclPackageHead.protocolVersion = 11;
+    pclPackage->pclPackageHead.pkgLen = htons(1108);
+    pclPackage->pclPackageHead.pkgSn = htons(sn);
+    pclPackage->pclPackageHead.lidarType = htons(1);
+    pclPackage->pclPackageHead.protocolVersion = htons(11);
 
     // pclPackage->pclPackageHead.timestamp[loop];//10byte time stamps
     pclPackage->pclPackageHead.measurenmentMode = 3;
@@ -137,7 +141,7 @@ void PackPclPkgTmp(PclPackage *pclPackage, uint8_t sn)
 }
 
 
-uint8_t* PackPclPkgHead(uint8_t *buf, PclPackage *pclPackage)
+static uint8_t* PackPclPkgHead(uint8_t *buf, PclPackage *pclPackage)
 {
     Set_1_Byte(&buf, 0x55);
     Set_1_Byte(&buf, 0xaa);
@@ -174,7 +178,7 @@ uint8_t* PackPclPkgHead(uint8_t *buf, PclPackage *pclPackage)
     return buf;
 }
 
-uint8_t* PackPclPkgPointT(uint8_t *buf, PointT *pointT_tmp, uint8_t channelNum)
+static uint8_t* PackPclPkgPointT(uint8_t *buf, PointT *pointT_tmp, uint8_t channelNum)
 {
     // lidar num should be dynamic adjustment to real detected point num
     for(uint8_t pointTLoop = 0; pointTLoop < channelNum; pointTLoop++)
@@ -188,7 +192,7 @@ uint8_t* PackPclPkgPointT(uint8_t *buf, PointT *pointT_tmp, uint8_t channelNum)
     return buf;
 }
 
-uint8_t* PackPclPkgDataBlock(uint8_t *buf, DataBlock *dataBlock_tmp)
+static uint8_t* PackPclPkgDataBlock(uint8_t *buf, DataBlock *dataBlock_tmp)
 {
     uint8_t timeOffSetSetFlag = 0;
 
@@ -214,7 +218,7 @@ uint8_t* PackPclPkgDataBlock(uint8_t *buf, DataBlock *dataBlock_tmp)
     return buf;
 }
 
-uint8_t* PackPclPkgPayload(uint8_t *buf, PclPackage *pclPackage)
+static uint8_t* PackPclPkgPayload(uint8_t *buf, PclPackage *pclPackage)
 {
     for(uint8_t blockLoop = 0; blockLoop < MAX_BLOCK_NUM; blockLoop++)
     {
@@ -224,7 +228,7 @@ uint8_t* PackPclPkgPayload(uint8_t *buf, PclPackage *pclPackage)
     return buf;
 }
 
-uint8_t* PackPclPkgTeil(uint8_t *buf, PclPackage *pclPackage)
+static uint8_t* PackPclPkgTeil(uint8_t *buf, PclPackage *pclPackage)
 {
     Set_1_Byte(&buf, pclPackage->pclPackageTail.rsv[0]);
     Set_1_Byte(&buf, pclPackage->pclPackageTail.rsv[1]);
@@ -233,7 +237,7 @@ uint8_t* PackPclPkgTeil(uint8_t *buf, PclPackage *pclPackage)
     return buf;
 }
 
-uint8_t* PackPclPkgToBuf(uint8_t *buf, PclPackage *pclPackage)
+static uint8_t* PackPclPkgToBuf(uint8_t *buf, PclPackage *pclPackage)
 {
     uint8_t *tmp_buf_1 = buf;
 
@@ -251,7 +255,6 @@ uint8_t* PackPclPkgToBuf(uint8_t *buf, PclPackage *pclPackage)
     pkgSn++;
     tmp_buf_1 = tmp_buf_1 + 4;
     Set_2_Byte(&tmp_buf_1, pkgPayloadLen);
-    tmp_buf_1 = tmp_buf_1 + 2;
     Set_2_Byte(&tmp_buf_1, pkgSn);
     
     buf = PackPclPkgTeil(buf, pclPackage);
@@ -259,7 +262,7 @@ uint8_t* PackPclPkgToBuf(uint8_t *buf, PclPackage *pclPackage)
 }
 
 
-uint32_t read_file(const char* filename, char** content)
+static uint32_t read_file(const char* filename, char** content)
 {
     // open in read binary mode
     FILE* file = fopen(filename, "rb");
@@ -289,7 +292,7 @@ uint32_t read_file(const char* filename, char** content)
     return 0;
 }
 
-uint32_t LidarConfigInit()
+static uint32_t LidarConfigInit()
 {
     const char* filename = "lidarConfig.json";
     char *json = NULL;
@@ -314,52 +317,50 @@ uint32_t LidarConfigInit()
     free(printed_json);
     //将JSON结构所占用的数据空间释放
 
-    printf("000000000000000000000000000000000000000000 init 1 \n");
-
     cJSON* item = cJSON_GetObjectItem(items, "lidar_type");
-    lidarParamConfig.lidarType = item->valueint;
+    lidarParamConfig.lidar_type = item->valueint;
     item = cJSON_GetObjectItem(items, "msg_source");
-    lidarParamConfig.msgSource = item->valueint;
+    lidarParamConfig.msg_source = item->valueint;
     item = cJSON_GetObjectItem(items, "lidar_num");
-    lidarParamConfig.lidarNum = item->valueint;
+    lidarParamConfig.lidar_num = item->valueint;
     item = cJSON_GetObjectItem(items, "max_block_num");
-    lidarParamConfig.maxBlockNum = item->valueint;
+    lidarParamConfig.max_block_num = item->valueint;
     item = cJSON_GetObjectItem(items, "roll_num");
-    lidarParamConfig.rollNum = item->valueint;
+    lidarParamConfig.roll_num = item->valueint;
     item = cJSON_GetObjectItem(items, "msop_port");
-    lidarParamConfig.msopPort = item->valueint;
+    lidarParamConfig.msop_port = item->valueint;
     item = cJSON_GetObjectItem(items, "difop_port");
-    lidarParamConfig.difopPort = item->valueint;
+    lidarParamConfig.difop_port = item->valueint;
     item = cJSON_GetObjectItem(items, "start_angle");
-    lidarParamConfig.startAngle = item->valueint;
+    lidarParamConfig.start_angle = item->valueint;
     item = cJSON_GetObjectItem(items, "end_angle");
-    lidarParamConfig.endAngle = item->valueint;
+    lidarParamConfig.end_angle = item->valueint;
     item = cJSON_GetObjectItem(items, "min_distance");
-    lidarParamConfig.minDistance = item->valueint;
+    lidarParamConfig.min_distance = item->valueint;
     item = cJSON_GetObjectItem(items, "max_distance");
-    lidarParamConfig.maxDistance = item->valueint;
+    lidarParamConfig.max_distance = item->valueint;
     item = cJSON_GetObjectItem(items, "wait_for_difop");
-    lidarParamConfig.waitForDifop = item->valueint;
+    lidarParamConfig.wait_for_difop = item->valueint;
     item = cJSON_GetObjectItem(items, "use_lidar_clock");
-    lidarParamConfig.useLidarClock = item->valueint;
+    lidarParamConfig.use_lidar_clock = item->valueint;
 
     item = cJSON_GetObjectItem(items, "point_cloud_send_ip");
     char *msopIp = item->valuestring;
-    lidarParamConfig.pointCloudSendIp = msopIp;
+    strncpy(lidarParamConfig.point_cloud_send_ip, msopIp, sizeof(lidarParamConfig.point_cloud_send_ip));
 
     item = cJSON_GetObjectItem(items, "packet_send_ip");
     char *mispIp = item->valuestring;
-    lidarParamConfig.packetSendIp = mispIp;
+    strncpy(lidarParamConfig.packet_send_ip, mispIp, sizeof(lidarParamConfig.packet_send_ip));
 
     item = cJSON_GetObjectItem(items, "pcap_path");
     char *pcapPath = item->valuestring;
-    lidarParamConfig.pcapPath = pcapPath;
+    lidarParamConfig.pcap_path = pcapPath;
 
     cJSON_Delete(items);
 
-    printf("0000000000000000000 point_cloud_send_ip: %s\n", lidarParamConfig.pointCloudSendIp);
-    printf("0000000000000000000 packet_send_ip: %s\n", lidarParamConfig.packetSendIp);
-    printf("0000000000000000000 pcap_path: %s\n", lidarParamConfig.pcapPath);
+    printf("point_cloud_send_ip: %s\n", lidarParamConfig.point_cloud_send_ip);
+    printf("packet_send_ip: %s\n", lidarParamConfig.packet_send_ip);
+    printf("pcap_path: %s\n", lidarParamConfig.pcap_path);
 
     return 0;
 }
@@ -482,9 +483,7 @@ int main(int argc, char **argv)
     }
 
 #else
-    
-
-    LidarConfigInit();
+    //LidarConfigInit();
 
     PclPackage pclPackage = {0};
 
@@ -495,14 +494,12 @@ int main(int argc, char **argv)
 
     while (count--)
     {
-        bzero(bufOrigenAddr, sizeof(bufOrigenAddr));
-        uint8_t *buf = bufOrigenAddr;
+        PackPclPkgTmp(&pclPackage, sn++);
+        PackPclPkgToBuf(buffer, &pclPackage);
 
-        PackPclPkgTmp(&pclPackage, ++sn);
+        printf("Send %lu bytes...\n", sizeof(buffer));
 
-        PackPclPkgToBuf(buf, &pclPackage);
-
-        ret = sendto(sockfd, (const char *)bufOrigenAddr, strlen(bufOrigenAddr), 
+        ret = sendto(sockfd, (const char *)buffer, sizeof(buffer), 
                      MSG_CONFIRM, (const struct sockaddr *) &caddr, len);
         
         if (ret < 0) {
@@ -511,69 +508,6 @@ int main(int argc, char **argv)
             return -1;
         }
 
-        printf("================================================================= head \n");
-
-        printf("write %d bytes data to server headcode0:        %x\n",(int)sizeof(buf), bufOrigenAddr[0]);
-        printf("write %d bytes data to server headcode1:        %x\n",(int)sizeof(buf), bufOrigenAddr[1]);
-        printf("write %d bytes data to server headcode2:        %x\n",(int)sizeof(buf), bufOrigenAddr[2]);
-        printf("write %d bytes data to server headcode3:        %x\n",(int)sizeof(buf), bufOrigenAddr[3]);
-        printf("write %d bytes data to server pkgLen:           %u\n",(int)sizeof(buf), *(uint16_t *)(bufOrigenAddr+4));
-        printf("write %d bytes data to server pkgSn:            %u\n",(int)sizeof(buf), *(uint16_t *)(bufOrigenAddr+6));
-        printf("write %d bytes data to server lidarType:        %u\n",(int)sizeof(buf), *(uint16_t *)(bufOrigenAddr+8));
-        printf("write %d bytes data to server protocolVertion:  %u\n",(int)sizeof(buf), *(uint16_t *)(bufOrigenAddr+10));
-
-        printf("write %d bytes data to server measurenmentMode: %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+22));
-        printf("write %d bytes data to server laserNum:         %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+23));
-        printf("write %d bytes data to server blockNum:         %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+24));
-        printf("write %d bytes data to server waveMode:         %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+25));
-        printf("write %d bytes data to server timeSyncMode:     %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+26));
-        printf("write %d bytes data to server timeSyncState:    %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+27));
-        printf("write %d bytes data to server memsTmp:          %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+28));
-        printf("write %d bytes data to server slotNum:          %u\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+29));
-        printf("================================================================= clock 0\n");
-
-        for(uint8_t blockLoop = 0; blockLoop < 3; blockLoop++)
-        {
-            printf("================================================================= block\n");
-
-            for (int rollLoop = 0; rollLoop < 2; rollLoop++)
-            {
-                printf("----------------------------------------------------------------- roll\n");
-
-                printf("read %d bytes data from client channelNum:          %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].channelNum);
-                printf("read %d bytes data from client timeOffSet:          %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].timeOffSet);
-                printf("read %d bytes data from client returnSn:            %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].returnSn);
-                for(uint8_t pointLoop = 0; pointLoop < pclPackage.dataBlock[blockLoop][rollLoop].channelNum; pointLoop++)
-                {
-                    printf("read %d bytes data from client distance:              %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].pointT[pointLoop].distance);
-                    printf("read %d bytes data from client azimuth:               %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].pointT[pointLoop].azimuth);
-                    printf("read %d bytes data from client elevation:             %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].pointT[pointLoop].elevation);
-                    printf("read %d bytes data from client reflectivity:          %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].pointT[pointLoop].reflectivity);
-                    printf("read %d bytes data from client rsv:                   %u\n",sr,pclPackage.dataBlock[blockLoop][rollLoop].pointT[pointLoop].rsv);
-                }
-            }
-        }
-
-        uint16_t* tmp_tail_buf = (uint16_t *)(bufOrigenAddr + 4);
-        uint16_t len = *tmp_tail_buf;
-
-        printf("write %d bytes data to server tail len:       %u\n",(int)sizeof(buf), len);
-
-        printf("write %d bytes data to server tail rsv[0]:    %x\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+40+len));
-        printf("write %d bytes data to server tail rsv[1]:    %x\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+40+len+1));
-        printf("write %d bytes data to server tail rsv[2]:    %x\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+40+len+2));
-        printf("write %d bytes data to server tail rsv[3]:    %x\n",(int)sizeof(buf), *(uint8_t *)(bufOrigenAddr+40+len+3));
-
-        printf("================================================================= end \n");
-
-        // bzero(buf,sizeof(buf));
-        // if((sr=read(sockfd,buf,sizeof(buf)))<=0)
-        // {
-        //     printf("read error:%d:%s\n",errno,strerror(errno));
-        //     close(sockfd);
-        //     return -1;
-        // }
-        // printf("read %d bytes data from server:%s\n",sr,buf);
         usleep(100000); // 10Hz
     }
 

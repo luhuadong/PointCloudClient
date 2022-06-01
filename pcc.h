@@ -12,33 +12,30 @@
 #define WHILE_NUM                 1
 #define LIDAR_NUM                 5
 #define MAX_POINT_NUM_IN_BLOCK    LIDAR_NUM /* 下面三个宏在结构体中被用到，无法适配config配置中的//可以将结构体的该部分设计成指针，然后通过malloc方式申请内存 */
-#define MAX_BLOCK_NUM             12        /* 设置小于3有问题，还需要回头看看 */
-#define ROLL_NUM                  2         /* 配置的回波次数 */
+#define MAX_BLOCK_NUM             15   
+#define ROLL_NUM                  2  //配置的回波次数
 
-static  uint8_t   bufOrigenAddr[MAXSIZE] = {0};
-static  uint16_t  pkgSn = 0;
+
 //注意字节对齐/命名规范
 typedef struct
 {
-    uint8_t           lidarType;
-    uint8_t           msgSource;
-    uint8_t           lidarNum;
-    uint8_t           maxBlockNum;
-    uint8_t           rollNum;
-    uint8_t           waitForDifop;
-    uint8_t           useLidarClock;
-    uint16_t          msopPort;
-    uint16_t          difopPort;  
-    uint16_t          startAngle;  
-    uint16_t          endAngle;    
-    float             minDistance;
-    float             maxDistance;
-    char             *pointCloudSendIp;  //需要子网掩码？
-    char             *packetSendIp;
-    char             *pcapPath;
+    uint8_t           lidar_type;
+    uint8_t           msg_source;
+    uint8_t           lidar_num;
+    uint8_t           max_block_num;
+    uint8_t           roll_num;
+    uint8_t           wait_for_difop;
+    uint8_t           use_lidar_clock;
+    uint16_t          msop_port;
+    uint16_t          difop_port;
+    uint16_t          start_angle;  
+    uint16_t          end_angle;    
+    float             min_distance;
+    float             max_distance;
+    uint8_t           point_cloud_send_ip[10];  //需要子网掩码？
+    uint8_t           packet_send_ip[10];
+    uint8_t           *pcap_path;
 }LidarParamConfig;
-
-static LidarParamConfig lidarParamConfig = {0};
 
 typedef struct
 {
@@ -61,7 +58,7 @@ typedef struct
 //40 byte
 typedef struct
 {
-    uint32_t           headCode;             //package identification
+    uint32_t           head_code;             //package identification
     uint16_t           pkgLen;                //package paload len
     uint16_t           pkgSn;                 //package sequnce num
     uint16_t           lidarType;             //identify lidar type
@@ -76,18 +73,19 @@ typedef struct
     uint8_t            memsTmp;               //the temperature of lidar
     uint8_t            slotNum;               //muti lidar identified by the slot num
     uint8_t            rsv[10];
-}PclPackageHead;
+} PclPackageHead;
 
 typedef struct
 {
     uint8_t            rsv[4];
-}PclPackageTail;
+} PclPackageTail;
 
 typedef struct
 {
     PclPackageHead     pclPackageHead;
     DataBlock          dataBlock[MAX_BLOCK_NUM][ROLL_NUM];
     PclPackageTail     pclPackageTail;
-}PclPackage;
+
+} PclPackage;
 
 #endif /* __PCC_H__ */

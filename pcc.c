@@ -368,11 +368,11 @@ static uint32_t LidarConfigInit()
 static void show_usage(const char *cmd)
 {
     printf("Usage: %s [options] ... \n", cmd);
-    printf("This is a demo for how to use options\n\n");
+    printf("This is a point cloud client demo\n\n");
     printf("  -h, --help           display this help and exit\n");
     printf("  -v, --version        output version information and exit\n");
-    printf("  -w, --who=NAME       tell me what is your NAME\n");
-    printf("  -s, --say=CONTENT    what CONTENT do you want to say\n\n");
+    printf("  -i, --ipaddr=ADDR    set target IP address\n");
+    printf("  -p, --port=PORT      set target port\n\n");
 
     exit(0);
 }
@@ -396,7 +396,7 @@ int main(int argc, char **argv)
 
         { "help",    0, NULL, 'h' },
         { "version", 0, NULL, 'v' },
-        { "ip",      1, NULL, 'i' },
+        { "ipaddr",  1, NULL, 'i' },
         { "port",    1, NULL, 'p' },
         { NULL,      0, NULL,  0  }
     };
@@ -479,7 +479,7 @@ int main(int argc, char **argv)
         sendto(sockfd, (const char *)hello, strlen(hello), MSG_CONFIRM, 
            (const struct sockaddr *) &caddr, len);
         
-        sleep(1);
+        sleep(5);
     }
 
 #else

@@ -2,8 +2,8 @@ CC=gcc
 TARGET=pcc
 
 all:
-	$(CC) pcc.c cJSON.c -o $(TARGET)
-	$(CC) pcc_s.c -o pcc_s
+	$(CC) pcc.c packet.c cJSON.c -o $(TARGET)
+	$(CC) pcc_view.c packet.c -o pcc_view
 
 clean:
 	rm $(TARGET)

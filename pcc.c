@@ -33,235 +33,6 @@ static LidarParamConfig lidarParamConfig = {0};
 //static  uint8_t   bufOrigenAddr[MAXSIZE] = {0};
 static  uint16_t  pkgSn = 0;
 
-static void Set_1_Byte(uint8_t **buf, uint8_t value)
-{
-    *(uint8_t *)(*buf) = value;
-    (*buf)++;
-    return;
-}
-
-static void Set_2_Byte(uint8_t **buf, uint16_t value)
-{
-    // **buf = value;
-    *(uint16_t *)(*buf) = value;
-    *buf = *buf + 2;
-    return;
-}
-
-static void Set_4_Byte(uint8_t **buf, uint32_t value)
-{
-    *(uint32_t *)(*buf) = value;
-    *buf = *buf + 4;
-    return;
-}
-
-static void PackPclPkgDataBlockTmp(PclPackage *pclPackage)
-{
-    for(uint8_t blockLoop = 0; blockLoop < MAX_BLOCK_NUM; blockLoop++)
-    {
-        DataBlock *dataBlock_tmp = &pclPackage->dataBlock[blockLoop][0];
-        for(uint8_t rollLoop = 0; rollLoop < ROLL_NUM; rollLoop++)
-        {
-            if((blockLoop % 3 == 0) && (rollLoop % 2 == 0))
-            {
-                dataBlock_tmp[rollLoop].channelNum = 5;
-                dataBlock_tmp[rollLoop].timeOffSet = 0;
-                dataBlock_tmp[rollLoop].returnSn   = 0;
-            }
-            if((blockLoop % 3 == 0) && (rollLoop % 2 == 1))
-            {
-                dataBlock_tmp[rollLoop].channelNum = 0;
-                dataBlock_tmp[rollLoop].timeOffSet = 0;
-                dataBlock_tmp[rollLoop].returnSn   = 0;
-            }
-            if((blockLoop % 3 == 1) && (rollLoop % 2 == 0))
-            {
-                dataBlock_tmp[rollLoop].channelNum = 0;
-                dataBlock_tmp[rollLoop].timeOffSet = 0;
-                dataBlock_tmp[rollLoop].returnSn   = 0;
-            }
-            if((blockLoop % 3 == 1) && (rollLoop % 2 == 1))
-            {
-                dataBlock_tmp[rollLoop].channelNum = 5;
-                dataBlock_tmp[rollLoop].timeOffSet = 0;
-                dataBlock_tmp[rollLoop].returnSn   = 0;
-            }
-            if((blockLoop % 3 == 2) && (rollLoop % 2 == 0))
-            {
-                dataBlock_tmp[rollLoop].channelNum = 3;
-                dataBlock_tmp[rollLoop].timeOffSet = 0;
-                dataBlock_tmp[rollLoop].returnSn   = 0;
-            }
-            if((blockLoop % 3 == 2) && (rollLoop % 2 == 1))
-            {
-                dataBlock_tmp[rollLoop].channelNum = 3;
-                dataBlock_tmp[rollLoop].timeOffSet = 0;
-                dataBlock_tmp[rollLoop].returnSn   = 0;
-            }
-
-            PointT *pointT_tmp = &dataBlock_tmp[rollLoop].pointT[0];
-            for(uint8_t pointTLoop = 0; pointTLoop < LIDAR_NUM; pointTLoop++)
-            {
-                pointT_tmp[pointTLoop].distance       = 15;
-                pointT_tmp[pointTLoop].azimuth        = 75;
-                pointT_tmp[pointTLoop].elevation      = 13;
-                pointT_tmp[pointTLoop].reflectivity   = 3;
-            }
-        }
-    }
-}
-
-static void PackPclPkgTmp(PclPackage *pclPackage, uint16_t sn)
-{
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ head
-    //4byte code
-    pclPackage->pclPackageHead.pkgLen = htons(1108);
-    pclPackage->pclPackageHead.pkgSn = htons(sn);
-    pclPackage->pclPackageHead.lidarType = htons(1);
-    pclPackage->pclPackageHead.protocolVersion = htons(11);
-
-    // pclPackage->pclPackageHead.timestamp[loop];//10byte time stamps
-    pclPackage->pclPackageHead.measurenmentMode = 3;
-    pclPackage->pclPackageHead.laserNum = 5;
-    pclPackage->pclPackageHead.blockNum = MAX_BLOCK_NUM;
-    pclPackage->pclPackageHead.waveMode = 0;
-    pclPackage->pclPackageHead.timeSyncMode = 1;
-    pclPackage->pclPackageHead.timeSyncState = 0;
-    pclPackage->pclPackageHead.memsTmp = 20;
-    pclPackage->pclPackageHead.slotNum = 1;
-
-    PackPclPkgDataBlockTmp(pclPackage);
-
-    pclPackage->pclPackageTail.rsv[0] = 0x12;
-    pclPackage->pclPackageTail.rsv[1] = 0x34;
-    pclPackage->pclPackageTail.rsv[2] = 0x56;
-    pclPackage->pclPackageTail.rsv[3] = 0x78;
-
-    return;
-}
-
-
-static uint8_t* PackPclPkgHead(uint8_t *buf, PclPackage *pclPackage)
-{
-    Set_1_Byte(&buf, 0x55);
-    Set_1_Byte(&buf, 0xaa);
-    Set_1_Byte(&buf, 0x5a);
-    Set_1_Byte(&buf, 0xa5);
-    printf("++++++++++++++++++++  000 %p\n", buf);
-
-    Set_2_Byte(&buf, pclPackage->pclPackageHead.pkgLen);
-    Set_2_Byte(&buf, pclPackage->pclPackageHead.pkgSn);
-    Set_2_Byte(&buf, pclPackage->pclPackageHead.lidarType);
-    Set_2_Byte(&buf, pclPackage->pclPackageHead.protocolVersion);
-    printf("++++++++++++++++++++  001 %p\n", buf);
-    for(uint8_t loop = 0; loop < 10; loop++)
-    {
-        Set_1_Byte(&buf, pclPackage->pclPackageHead.timestamp[loop]);
-    }
-    printf("++++++++++++++++++++  002 %p\n", buf);
-
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.measurenmentMode);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.laserNum);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.blockNum);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.waveMode);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.timeSyncMode);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.timeSyncState);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.memsTmp);
-    Set_1_Byte(&buf, pclPackage->pclPackageHead.slotNum);
-    printf("++++++++++++++++++++  003 %p\n", buf);
-
-    for(uint8_t loop = 0; loop < 10; loop++)
-    {
-        Set_1_Byte(&buf, pclPackage->pclPackageHead.rsv[loop]);
-    }
-    printf("++++++++++++++++++++  004 %p\n", buf);
-    return buf;
-}
-
-static uint8_t* PackPclPkgPointT(uint8_t *buf, PointT *pointT_tmp, uint8_t channelNum)
-{
-    // lidar num should be dynamic adjustment to real detected point num
-    for(uint8_t pointTLoop = 0; pointTLoop < channelNum; pointTLoop++)
-    {
-        Set_2_Byte(&buf, pointT_tmp[pointTLoop].distance);
-        Set_2_Byte(&buf, pointT_tmp[pointTLoop].azimuth);
-        Set_2_Byte(&buf, pointT_tmp[pointTLoop].elevation);
-        Set_1_Byte(&buf, pointT_tmp[pointTLoop].reflectivity);
-        Set_2_Byte(&buf, pointT_tmp[pointTLoop].rsv);
-    }
-    return buf;
-}
-
-static uint8_t* PackPclPkgDataBlock(uint8_t *buf, DataBlock *dataBlock_tmp)
-{
-    uint8_t timeOffSetSetFlag = 0;
-
-    for(uint8_t rollLoop = 0; rollLoop < ROLL_NUM; rollLoop++)
-    {
-        Set_1_Byte(&buf, dataBlock_tmp[rollLoop].channelNum);
-        if(dataBlock_tmp[rollLoop].channelNum == 0)
-        {
-            printf("detection for roll %u is empty!\n", rollLoop);
-            continue;
-        }
-        if(timeOffSetSetFlag == 0)//one time_Offset needed for one block
-        {
-            Set_1_Byte(&buf, dataBlock_tmp[rollLoop].timeOffSet);
-            timeOffSetSetFlag = 1;
-        }
-        Set_1_Byte(&buf, dataBlock_tmp[rollLoop].returnSn);
-
-        PointT *pointT_tmp = &dataBlock_tmp[rollLoop].pointT[0];
-        uint8_t channelNum = dataBlock_tmp[rollLoop].channelNum;
-        buf = PackPclPkgPointT(buf, pointT_tmp, channelNum);
-    }
-    return buf;
-}
-
-static uint8_t* PackPclPkgPayload(uint8_t *buf, PclPackage *pclPackage)
-{
-    for(uint8_t blockLoop = 0; blockLoop < MAX_BLOCK_NUM; blockLoop++)
-    {
-        DataBlock *dataBlock_tmp = &pclPackage->dataBlock[blockLoop][0];
-        buf = PackPclPkgDataBlock(buf, dataBlock_tmp);
-    }
-    return buf;
-}
-
-static uint8_t* PackPclPkgTeil(uint8_t *buf, PclPackage *pclPackage)
-{
-    Set_1_Byte(&buf, pclPackage->pclPackageTail.rsv[0]);
-    Set_1_Byte(&buf, pclPackage->pclPackageTail.rsv[1]);
-    Set_1_Byte(&buf, pclPackage->pclPackageTail.rsv[2]);
-    Set_1_Byte(&buf, pclPackage->pclPackageTail.rsv[3]);
-    return buf;
-}
-
-static uint8_t* PackPclPkgToBuf(uint8_t *buf, PclPackage *pclPackage)
-{
-    uint8_t *tmp_buf_1 = buf;
-
-    printf("0000000000000000 %p\n", buf);
-    buf = PackPclPkgHead(buf, pclPackage);
-    uint8_t *tmp_buf_2 = buf;
-    if((tmp_buf_2 - tmp_buf_1) == 40)
-    {
-        printf("head offset is OK! \n");
-    }
-    printf("0000000000000000 %p\n", buf);
-
-    buf = PackPclPkgPayload(buf, pclPackage);
-    uint16_t pkgPayloadLen = buf - tmp_buf_1 - sizeof(PclPackageHead);
-    pkgSn++;
-    tmp_buf_1 = tmp_buf_1 + 4;
-    Set_2_Byte(&tmp_buf_1, pkgPayloadLen);
-    Set_2_Byte(&tmp_buf_1, pkgSn);
-    
-    buf = PackPclPkgTeil(buf, pclPackage);
-    return buf;
-}
-
-
 static uint32_t read_file(const char* filename, char** content)
 {
     // open in read binary mode
@@ -383,7 +154,7 @@ static void show_version(void)
     exit(0);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
     int option;
     char *ipaddr = NULL;
@@ -433,7 +204,7 @@ int main(int argc, char **argv)
     //bzero(&saddr, sizeof(struct sockaddr_in));
     saddr.sin_family = AF_INET;
     saddr.sin_addr.s_addr = INADDR_ANY;
-    saddr.sin_port = htons(DEFAULT_MSOP_PORT);
+    saddr.sin_port = htons(DEFAULT_MSOP_PORT - 1);
 
     printf("Host IP: %s, Port: %d\n", inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
 
@@ -470,7 +241,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    int count = 10;
+    int count = 3;
 
 #if 0
 
@@ -494,13 +265,14 @@ int main(int argc, char **argv)
 
     while (count--)
     {
-        PackPclPkgTmp(&pclPackage, sn++);
-        PackPclPkgToBuf(buffer, &pclPackage);
+        PackPclPkgTmp(&pclPackage, sn);
+        PackPclPkgToBuf(buffer, &pclPackage, sn);
+        
+        uint16_t pack_len = 0;
+        get_packet_length((uint8_t *)buffer, &pack_len);
+        printf("pack len = %d\n", pack_len);
 
-        printf("Send %lu bytes...\n", sizeof(buffer));
-
-        ret = sendto(sockfd, (const char *)buffer, sizeof(buffer), 
-                     MSG_CONFIRM, (const struct sockaddr *) &caddr, len);
+        ret = sendto(sockfd, &buffer, pack_len + 44, 0, (struct sockaddr*)&caddr, len);
         
         if (ret < 0) {
             printf("Send package error...\n");
@@ -508,7 +280,14 @@ int main(int argc, char **argv)
             return -1;
         }
 
-        usleep(100000); // 10Hz
+        //usleep(100000); // 10Hz
+        sleep(1);
+
+        sn++;
+        if(sn < 20)
+        {
+            printf("-----------------------sn:%u\n", sn);
+        }
     }
 
 #endif

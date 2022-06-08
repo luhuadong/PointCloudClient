@@ -15,6 +15,13 @@
 #define MAX_BLOCK_NUM             15   
 #define ROLL_NUM                  2  //配置的回波次数
 
+#ifndef FALSE
+#define FALSE (0)
+#endif
+#ifndef TRUE
+#define TRUE  (1)
+#endif
+typedef int StatusCode; 
 
 //注意字节对齐/命名规范
 typedef struct
@@ -87,5 +94,13 @@ typedef struct
     PclPackageTail     pclPackageTail;
 
 } PclPackage;
+
+void PackPclPkgTmp(PclPackage *pclPackage, uint16_t sn);
+uint8_t* PackPclPkgToBuf(uint8_t *buf, PclPackage *pclPackage, uint16_t pkgSn);
+
+int get_packet_length(uint8_t *buf, uint16_t *plen);
+
+void PrintpOrigineAddr(uint8_t *bufAddr);
+void ParasePclPackage(uint8_t *buf, PclPackage *pclPackage);
 
 #endif /* __PCC_H__ */

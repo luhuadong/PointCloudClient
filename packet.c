@@ -317,10 +317,11 @@ static void PrintPclPackage(PclPackage *pclPackage, uint8_t loop)
     PrintPclPackageHead(&pclPackage->pclPackageHead);
     for(uint16_t blockLoop = 0; blockLoop < MAX_BLOCK_NUM; blockLoop++)
     {
-       for(uint16_t rollLoop = 0; rollLoop < ROLL_NUM; rollLoop++)
-       {
-           PrintDataBlock(&pclPackage->dataBlock[blockLoop][rollLoop], blockLoop, rollLoop, loop);
-       }
+        printf("======== Block %d\n", blockLoop+1);
+        for(uint16_t rollLoop = 0; rollLoop < ROLL_NUM; rollLoop++)
+        {
+            PrintDataBlock(&pclPackage->dataBlock[blockLoop][rollLoop], blockLoop, rollLoop, loop);
+        }
     }
     PrintPclPackageTail(&pclPackage->pclPackageTail);
     return;
@@ -450,17 +451,17 @@ void ParasePclPackage(uint8_t *buf, PclPackage *pclPackage)
 {
     printf("\n");
 
-    printf("xxxxxxxxxxxxxxxxxxxxxxxxx headAddr 111 %p\n", buf);
-
+    printf("Frame >>> headAddr: %p\n", buf);
     buf = ParasePclPackageHead(buf, pclPackage);
-    printf("xxxxxxxxxxxxxxxxxxxxxxxxx payloadAddr 111 %p\n", buf);
 
-    printf("+++++++++++++++++++++ 111 %u\n", pclPackage->pclPackageHead.pkgSn);
+    printf("Frame >>> payloadAddr: %p\n", buf);
+    printf("          sn: %u\n", pclPackage->pclPackageHead.pkgSn);
     buf = ParasePclPackagePayLoad(buf, pclPackage);
-    printf("xxxxxxxxxxxxxxxxxxxxxxxxx tailAddr 111 %p\n", buf);
 
+    printf("Frame >>> tailAddr: %p\n", buf);
     buf = ParasePclPackageTail(buf, pclPackage);
-    printf("xxxxxxxxxxxxxxxxxxxxxxxxx end 111 %p\n", buf);
+
+    printf("Frame >>> end\n");
 
     if(pclPackage->pclPackageHead.pkgSn%16 == 0)
     {
@@ -478,18 +479,18 @@ void PrintpOrigineAddr(uint8_t *bufAddr)
     Get_2_Byte(&lenAddr, &pkgPayloadLen);
     for(size_t loop = (size_t)curAddr; loop < (size_t)(curAddr+pkgPayloadLen+40+4); loop++)  //40byte head 4byte tail
     {
-        if(loop == (size_t)(curAddr+40))
+        if(loop == (size_t)(curAddr + 40))
         {
             printf("\n");
-            printf("***********************************************************above is head\n");
+            printf("======== HEADER\n");
         }
-        if(loop == (size_t)(curAddr+40+pkgPayloadLen))
+        if(loop == (size_t)(curAddr + 40 + pkgPayloadLen))
         {
             printf("\n");
-            printf("***********************************************************above is payload\n");
+            printf("======== PAYLOAD\n");
         }
 
         printf("%02x",*(uint8_t *)loop);
     }
-    printf("***********************************************************above is tail\n");
+    printf("\n======== TAIL\n");
 }

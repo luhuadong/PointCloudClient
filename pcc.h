@@ -50,9 +50,9 @@ typedef struct
 
 typedef struct
 {
-    uint16_t          distance;      /* 球坐标系径向距离 radius */
-    uint16_t          azimuth;       /* 球坐标系水平夹角，方位角 */
-    uint16_t          elevation;     /* 球坐标系垂直夹角，俯仰角（极角） */
+    uint16_t          distance;      /* 球坐标系径向距离 radius（单位 mm） */
+    uint16_t          azimuth;       /* 球坐标系水平夹角，方位角（分辨率 0.01°） */
+    uint16_t          elevation;     /* 球坐标系垂直夹角，俯仰角/极角（分辨率 0.01°） */
     uint8_t           reflectivity;  /* 反射强度 intensity */
     uint16_t          rsv;           /* 保留 */
 } PointT;

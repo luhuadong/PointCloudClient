@@ -91,6 +91,27 @@ int main(int argc, char *argv[])
     vtkSmartPointer<vtkInteractorStyleTrackballCamera> istyle = vtkSmartPointer<vtkInteractorStyleTrackballCamera>::New();
 
     /* Init VTK window */
+    //_创建待显示数据源
+ 
+    polyData->SetPoints(m_Points);      //_设置点集
+    polyData->SetVerts(vertices);       //_设置渲染顶点
+    pointMapper->SetInputData(polyData);
+ 
+    pointActor->SetMapper(pointMapper);
+    pointActor->GetProperty()->SetColor(1, 0, 0);
+    pointActor->GetProperty()->SetAmbient(0.5);
+    pointActor->GetProperty()->SetPointSize(3);
+    //pointActor->GetProperty()->SetRepresentationToWireframe();
+    //pointActor->GetProperty()->SetRepresentationToSurface();
+ 
+    ren1->AddActor(pointActor);
+    ren1->SetBackground(0, 0, 0);
+ 
+    renWin->AddRenderer(ren1);
+    renWin->SetSize(800, 800);
+ 
+    iren->SetInteractorStyle(istyle);
+    iren->SetRenderWindow(renWin);  //交互
     
 
     //创建网络通信对象
@@ -128,30 +149,8 @@ int main(int argc, char *argv[])
         ParasePclPackage(buffer, &pclPackage);
         insertPointFromPacket(m_Points, vertices, &pclPackage);
 
-        //_创建待显示数据源
- 
-    polyData->SetPoints(m_Points);      //_设置点集
-    polyData->SetVerts(vertices);       //_设置渲染顶点
-    pointMapper->SetInputData(polyData);
- 
-    pointActor->SetMapper(pointMapper);
-    pointActor->GetProperty()->SetColor(1, 0, 0);
-    pointActor->GetProperty()->SetAmbient(0.5);
-    pointActor->GetProperty()->SetPointSize(3);
-    //pointActor->GetProperty()->SetRepresentationToWireframe();
-    //pointActor->GetProperty()->SetRepresentationToSurface();
- 
-    ren1->AddActor(pointActor);
-    ren1->SetBackground(0, 0, 0);
- 
-    renWin->AddRenderer(ren1);
-    renWin->SetSize(800, 800);
- 
-    iren->SetInteractorStyle(istyle);
-    iren->SetRenderWindow(renWin);  //交互
- 
-    renWin->Render();
-    iren->Start();
+        renWin->Render();  /* 创建线程 disk 和 gdrv */
+        iren->Start();
     }
     close(sockfd);
 }

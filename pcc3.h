@@ -12,15 +12,15 @@ extern "C" {
 #define PANDAR128_BLOCK_NUM       (2)
 #define PANDAR128_LASER_NUM       (128)
 
-#define DEFAULT_MSOP_PORT         51180
-#define DEFAULT_DIFOP_PORT        51080
+#define DEFAULT_MSOP_PORT         (51180)
+#define DEFAULT_DIFOP_PORT        (51080)
 
-#define MAXSIZE                   1500
-#define WHILE_NUM                 1
-#define LIDAR_NUM                 5         /* 默认 25 */
-#define MAX_POINT_NUM_IN_BLOCK    LIDAR_NUM /* 下面三个宏在结构体中被用到，无法适配config配置中的//可以将结构体的该部分设计成指针，然后通过malloc方式申请内存 */
-#define MAX_BLOCK_NUM             15   
-#define ROLL_NUM                  2  //配置的回波次数
+#define MAXSIZE                   (1500)
+#define WHILE_NUM                 (1)
+#define LASER_NUM                 (8)         /* 默认 25 */
+#define MAX_POINT_NUM_IN_BLOCK    LASER_NUM
+#define MAX_BLOCK_NUM             (4)
+#define ROLL_NUM                  (3)         /* 配置的回波次数，最大3回波 */
 
 #ifndef FALSE
 #define FALSE (0)
@@ -65,20 +65,27 @@ typedef struct
 } Pandar128Block;
 #pragma pack(pop)
 
+/* Custom */
 #pragma pack(push, 1)
 typedef struct
 {
-    uint16_t Distance;
-    uint8_t Intensity;
-} AsensingChannel;
+    uint16_t distance;      /* 球坐标系径向距离 radius（单位 mm） */
+    uint16_t azimuth;       /* 球坐标系水平夹角，方位角（分辨率 0.01°） */
+    uint16_t elevation;     /* 球坐标系垂直夹角，俯仰角/极角（分辨率 0.01°） */
+    uint8_t  intensity;     /* 反射强度 intensity */
+    uint16_t reserved;      /* 保留 */
+} PointT;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct
 {
-    uint16_t Azimuth;
-    AsensingChannel channels[PANDAR128_LASER_NUM];
-} AsensingBlock;
+    uint8_t channelNum;
+    uint8_t timeOffSet;
+    uint8_t returnSn; //can be omitted
+    uint8_t reserved;
+    PointT  pointT[MAX_POINT_NUM_IN_BLOCK];   /* 8 x 9 = 72 Bytes */
+} AsensingBlock;                              /* Total 76 Bytes */
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -103,13 +110,12 @@ typedef struct
     uint8_t  VersionMajor;
     uint8_t  VersionMinor;
 
-    uint8_t UTCTime0;
-    uint8_t UTCTime1;
-    uint8_t UTCTime2;
-    uint8_t UTCTime3;
-    uint8_t UTCTime4;
-    uint8_t UTCTime5;
-
+    uint8_t  UTCTime0;
+    uint8_t  UTCTime1;
+    uint8_t  UTCTime2;
+    uint8_t  UTCTime3;
+    uint8_t  UTCTime4;
+    uint8_t  UTCTime5;
     uint32_t Timestamp;
 
     uint8_t  MeasureMode;
@@ -120,7 +126,7 @@ typedef struct
     uint8_t  TimeSyncStat;
     uint8_t  MemsTemp;
     uint8_t  SlotNum;
-    uint32_t  FrameID;
+    uint32_t FrameID;
 
     uint16_t Reserved1;
     uint16_t Reserved2;
@@ -182,7 +188,7 @@ typedef struct
 typedef struct
 {
     AsensingHeader header;
-    AsensingBlock blocks[PANDAR128_BLOCK_NUM];
+    AsensingBlock blocks[MAX_BLOCK_NUM * ROLL_NUM];
     uint32_t crc;
     uint8_t functionSafety[17];
     AsensingTail tail;

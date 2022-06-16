@@ -30,7 +30,7 @@
 #define FPS 10 /* 10Hz */
 #define FOV_HORIZON 360
 #define FOV_VERTICAL 40
-#define RESOLUTION_HORIZON  1     /* 0.1, 0.2 */
+#define RESOLUTION_HORIZON  3.75     /* 120 / 32 */
 #define RESOLUTION_VERTICAL 0.2
 
 #define BUFFER_SIZE 1500
@@ -41,7 +41,7 @@ const char *hello = "Hello from server";
 static uint16_t pkgSn = 0;
 static uint16_t distance = 1;  /* for test */
 
-static void fill_packet(AsensingPacket *packet, uint16_t azimuth, uint16_t distance)
+static void fill_packet(AsensingPacket *packet, uint16_t azimuth, uint16_t distance, uint16_t sn)
 {
     /* Get time */
     struct timeval tv;
@@ -54,13 +54,14 @@ static void fill_packet(AsensingPacket *packet, uint16_t azimuth, uint16_t dista
 
     /* Header */
     packet->header.Sob = htole32(0x5AA555AA); /* 0xAA, 0x55, 0xA5, 0x5A */
+    packet->header.SeqNum = htole16(sn);
     packet->header.VersionMajor = 0x01;
     packet->header.VersionMinor = 0x04;
     //packet->header.DistUnit = 0x04; /* 4mm */
     //packet->header.Flags = 0x0;
-    packet->header.LaserNum = 0x80; /* 128 */
-    packet->header.BlockNum = 0x02; /* 2 block */
-    packet->header.EchoCount = 0x02;
+    packet->header.LaserNum = 0x08; /* 8 */
+    packet->header.BlockNum = 0x0C; /* 12 block (4x3) */
+    packet->header.EchoCount = 0x03;
     //packet->header.EchoNum = 0x02;
 
     packet->header.UTCTime0 = pt->tm_year;
@@ -73,14 +74,25 @@ static void fill_packet(AsensingPacket *packet, uint16_t azimuth, uint16_t dista
     packet->header.Timestamp = tv.tv_usec;
 
     /* Block */
-    for (int i = 0; i < PANDAR128_BLOCK_NUM; i++)
+    for (int i = 0; i < (MAX_BLOCK_NUM * ROLL_NUM); i++)
     {
-        packet->blocks[i].Azimuth = htole16(azimuth); /* 低字节在前 */
+        packet->blocks[i].channelNum = LASER_NUM;
+        packet->blocks[i].timeOffSet = 0;
+        packet->blocks[i].returnSn = 0;
 
-        for (int channel = 0; channel < PANDAR128_LASER_NUM; channel++)
+        uint16_t elevation = 0;
+
+        if (i%3 == 0) {
+            azimuth = azimuth + ((i/3) * RESOLUTION_HORIZON * 100);
+        }
+
+        for (int channel = 0; channel < MAX_POINT_NUM_IN_BLOCK; channel++)
         {
-            packet->blocks[i].units[channel].Distance = distance * 100;
-            packet->blocks[i].units[channel].Intensity = 0xFF;
+            packet->blocks[i].pointT[channel].distance = distance * 100;
+            packet->blocks[i].pointT[channel].intensity = 0xFF;
+            packet->blocks[i].pointT[channel].azimuth = htole16(azimuth); /* 低字节在前 */
+            packet->blocks[i].pointT[channel].elevation = htole16(elevation);
+            elevation += 5 * 100;  /* 5 degree, 100 times */
         }
     }
 
@@ -229,28 +241,31 @@ int main(int argc, char *argv[])
     AsensingPacket packet = {0};
 
     printf("Size of packet = %lu bytes\n", sizeof(packet));
-    printf("Size of Packet = %lu bytes\n", sizeof(AsensingPacket));
     printf("Size of Header = %lu bytes\n", sizeof(AsensingHeader));
-    printf("Size of Block = %lu bytes\n", sizeof(Pandar128Block));
-    printf("Size of Tail = %lu bytes\n", sizeof(AsensingTail));
+    printf("Size of Block  = %lu bytes (each %lu bytes)\n", sizeof(AsensingBlock) * MAX_BLOCK_NUM * ROLL_NUM, sizeof(AsensingBlock));
+    printf("Size of Tail   = %lu bytes\n", sizeof(AsensingTail));
 
-    uint8_t sn = 0;
+    uint16_t sn = 0;  /* packet sequece number */
+    uint32_t frameID = 0;
+
     uint32_t sr;
     int ret = 0;
 
     while (count--)
     {
         printf("------ %4u\n", count);
+
         if (distance > 10) {
             distance = 1;
         }
 
-        for (int i = 0; i < FOV_HORIZON / RESOLUTION_HORIZON; i++)
-        {
+        /* This is a frame of point cloud */
+        for (int i=0; i<8; i++) {
             memset(&packet, 0, sizeof(packet));
-            fill_packet(&packet, i * RESOLUTION_HORIZON * 100, distance);
 
-            uint16_t pack_len = 0;
+            packet.header.FrameID = htole32(frameID);
+
+            fill_packet(&packet, i * RESOLUTION_HORIZON * 4 * 100, distance, sn);
 
             ret = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&caddr, len);
 
@@ -260,7 +275,11 @@ int main(int argc, char *argv[])
                 close(sockfd);
                 return -1;
             }
+
+            sn++;
         }
+
+        frameID++;
 
         //usleep(100000); // 10Hz
         sleep(1);

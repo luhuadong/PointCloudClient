@@ -104,8 +104,9 @@ typedef struct
 typedef struct
 {
     uint32_t Sob;
-    uint16_t PkgLen;
+    uint32_t FrameID;
     uint16_t SeqNum;
+    uint16_t PkgLen;
     uint16_t LidarType;
     uint8_t  VersionMajor;
     uint8_t  VersionMinor;
@@ -126,7 +127,6 @@ typedef struct
     uint8_t  TimeSyncStat;
     uint8_t  MemsTemp;
     uint8_t  SlotNum;
-    uint32_t FrameID;
 
     uint16_t Reserved1;
     uint16_t Reserved2;

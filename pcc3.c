@@ -41,7 +41,8 @@ const char *hello = "Hello from server";
 static uint16_t pkgSn = 0;
 static uint16_t distance = 1;  /* for test */
 
-static void fill_packet(AsensingPacket *packet, uint16_t azimuth, uint16_t distance, uint16_t sn)
+static void fill_packet(AsensingPacket *packet, uint16_t azimuth, 
+                        uint16_t distance, uint16_t sn)
 {
     /* Get time */
     struct timeval tv;

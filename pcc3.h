@@ -1,5 +1,5 @@
-#ifndef __PCC2_H__
-#define __PCC2_H__
+#ifndef __PCC3_H__
+#define __PCC3_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -208,4 +208,4 @@ typedef struct
 }
 #endif
 
-#endif /* __PCC2_H__ */
+#endif /* __PCC3_H__ */
